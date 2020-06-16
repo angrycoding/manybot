@@ -1,5 +1,6 @@
 var Async = require('async'),
-	Request = require('request');
+	Request = require('request'),
+	Cheerio = require('cheerio');
 
 var TELEGRAM_BOT_TOKEN;
 var TAMTAM_BOT_TOKEN;
@@ -77,8 +78,37 @@ function sendToTamTam(moviePath, chatId, chatTitle, ret) {
 */
 
 
+function cleanupTextTelegram(text) {
+	text = String(text).trim();
+	text = text.replace(/[\n\t]+/g, ' ')
+	text = text.replace(/[\n\t\s]*(<br\s*\/>|<br>)[\n\t\s]*/g, '\n');
+	return text;
+}
+
+function cleanupTextTamtam(text) {
+	text = String(text).trim();
+	text = text.replace(/[\n\t]+/g, ' ');
+	text = text.replace(/[\n\t\s]*(<br\s*\/>|<br>)[\n\t\s]*/g, '\n');
+	var $ = Cheerio.load(text, {
+		decodeEntities: false
+	});
+	$('*').each(function() {
+		var element = $(this);
+		var tagName = this.tagName;
+		if (tagName === 'a') {
+			element.replaceWith(element.attr('href'));
+		} else if (!['html', 'body', 'br'].includes(tagName)) {
+			element.replaceWith(element.text());
+		}
+	});
+	return $('body').html();
+}
 
 function sendTextMessage(ids, text, ret) {
+
+	var telegramText = 'ℹ ' + cleanupTextTelegram(text);
+	var tamtamText = 'ℹ ' + cleanupTextTamtam(text);
+
 	Async.eachSeries(ids, function(id, nextId) {
 
 		id = String(id);
@@ -91,8 +121,8 @@ function sendTextMessage(ids, text, ret) {
 				uri: `https://botapi.tamtam.chat/messages?access_token=${TAMTAM_BOT_TOKEN}&user_id=${id.slice(2)}`,
 				method: 'POST',
 				json: {
-					"text": text,
-					"version": "0.2.0"
+					"text": tamtamText,
+					"version": "0.3.0"
 				}
 			}, function(error, response, body) {
 				nextId();
@@ -102,14 +132,16 @@ function sendTextMessage(ids, text, ret) {
 
 
 			Request.post({
-				uri: `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}`,
+				uri: `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
 				method: 'POST',
 				json: {
 					"chat_id": id.slice(2),
-					"text": text,
+					"text": telegramText,
 					"parse_mode": "HTML"
 				}
 			}, function(error, response, body) {
+				if (error) console.info(error);
+				console.info(body);
 				nextId();
 			});
 
