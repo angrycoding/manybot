@@ -106,8 +106,12 @@ function cleanupTextTamtam(text) {
 
 function sendTextMessage(ids, text, ret) {
 
-	var telegramText = 'ℹ ' + cleanupTextTelegram(text);
-	var tamtamText = 'ℹ ' + cleanupTextTamtam(text);
+	if (!(ids instanceof Array)) ids = [ids];
+	text = 'ℹ ' + String(text);
+	if (typeof ret !== 'function') ret = (function(){});
+
+	var telegramText = cleanupTextTelegram(text);
+	var tamtamText = cleanupTextTamtam(text);
 
 	Async.eachSeries(ids, function(id, nextId) {
 
