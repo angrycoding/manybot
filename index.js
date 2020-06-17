@@ -172,16 +172,16 @@ function sendText(ids, text, ret, prefix) {
 		var chatOrUserId = id.slice(2);
 		if (id.startsWith('tt')) {
 			sendTextTamTam(chatOrUserId, tamtamText, function(error) {
-				if (error) errorIds.push(chatOrUserId);
+				if (error) errorIds.push(id);
 				nextId();
 			});
 		} else if (id.startsWith('tg')) {
 			sendTextTelegram(chatOrUserId, telegramText, function(error) {
-				if (error) errorIds.push(chatOrUserId);
+				if (error) errorIds.push(id);
 				nextId();
 			});
 		} else {
-			errorIds.push(chatOrUserId);
+			errorIds.push(id);
 			nextId();
 		}
 	}, function() {
