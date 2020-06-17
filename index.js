@@ -2,6 +2,17 @@ var Async = require('async'),
 	Request = require('request'),
 	Cheerio = require('cheerio');
 
+var REQUEST_TIMEOUT_MS = 1000 * 10;
+
+var MESSAGE_KINDS = {
+	KIND_INFO: '💬',
+	KIND_WARNING: '❗',
+	KIND_QUESTION: '❓',
+	KIND_FLAG: '🚩',
+	KIND_MONEY: '💵',
+	KIND_FIRE: '🔥',
+};
+
 var TELEGRAM_BOT_TOKEN;
 var TAMTAM_BOT_TOKEN;
 
@@ -77,6 +88,13 @@ function sendToTamTam(moviePath, chatId, chatTitle, ret) {
 }
 */
 
+function getString(expression, fallback) {
+	var result;
+	try { result = typeof expression === 'function' ? expression() : expression; } catch (exception) {}
+	if (typeof result === 'string') return result;
+	if (arguments.length > 1) return fallback;
+}
+
 
 function cleanupTextTelegram(text) {
 	text = String(text).trim();
@@ -104,61 +122,76 @@ function cleanupTextTamtam(text) {
 	return $('body').html();
 }
 
-function sendTextMessage(ids, text, ret) {
+
+function sendTextTamTam(id, text, ret) {
+	if (!TAMTAM_BOT_TOKEN) return ret(true);
+	Request.post({
+		uri: `https://botapi.tamtam.chat/messages?access_token=${TAMTAM_BOT_TOKEN}&user_id=${id}`,
+		method: 'POST',
+		timeout: REQUEST_TIMEOUT_MS,
+		json: {
+			'text': text,
+			'version': '0.3.0'
+		}
+	}, function(error, response, body) {
+		ret(getString(() => body.message.body.text) !== text);
+	});
+}
+
+function sendTextTelegram(id, text, ret) {
+	if (!TELEGRAM_BOT_TOKEN) return ret(true);
+	Request.post({
+		uri: `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
+		method: 'POST',
+		timeout: REQUEST_TIMEOUT_MS,
+		json: {
+			'chat_id': id,
+			'text': text,
+			'parse_mode': 'HTML'
+		}
+	}, function(error, response, body) {
+		ret(getString(() => body.result.text) !== text);
+	});
+}
+
+function sendText(ids, text, ret, prefix) {
+
+	var errorIds = [];
 
 	if (!(ids instanceof Array)) ids = [ids];
-	text = 'ℹ ' + String(text);
+	if (typeof text !== 'string') return ret(ids);
 	if (typeof ret !== 'function') ret = (function(){});
+	if (typeof prefix !== 'string') prefix = MESSAGE_KINDS.KIND_INFO;
 
+	text = ((prefix ? prefix + ' ' : '') + text);
 	var telegramText = cleanupTextTelegram(text);
 	var tamtamText = cleanupTextTamtam(text);
 
 	Async.eachSeries(ids, function(id, nextId) {
-
 		id = String(id);
-
+		var chatOrUserId = id.slice(2);
 		if (id.startsWith('tt')) {
-
-			if (!TAMTAM_BOT_TOKEN) return nextId();
-
-			Request.post({
-				uri: `https://botapi.tamtam.chat/messages?access_token=${TAMTAM_BOT_TOKEN}&user_id=${id.slice(2)}`,
-				method: 'POST',
-				json: {
-					"text": tamtamText,
-					"version": "0.3.0"
-				}
-			}, function(error, response, body) {
+			sendTextTamTam(chatOrUserId, tamtamText, function(error) {
+				if (error) errorIds.push(chatOrUserId);
 				nextId();
 			});
-
 		} else if (id.startsWith('tg')) {
-
-
-			Request.post({
-				uri: `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
-				method: 'POST',
-				json: {
-					"chat_id": id.slice(2),
-					"text": telegramText,
-					"parse_mode": "HTML"
-				}
-			}, function(error, response, body) {
-				if (error) console.info(error);
-				console.info(body);
+			sendTextTelegram(chatOrUserId, telegramText, function(error) {
+				if (error) errorIds.push(chatOrUserId);
 				nextId();
 			});
-
-
+		} else {
+			errorIds.push(chatOrUserId);
+			nextId();
 		}
-
-		else nextId();
-
-	}, ret);
+	}, function() {
+		ret(errorIds.length ? errorIds : null);
+	});
 }
 
 module.exports = {
+	...MESSAGE_KINDS,
 	setTelegramBotToken: setTelegramBotToken,
 	setTamTamBotToken: setTamTamBotToken,
-	sendTextMessage: sendTextMessage
+	sendTextMessage: sendText,
 };
