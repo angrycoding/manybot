@@ -1,8 +1,10 @@
-var Async = require('async'),
+var FS = require('fs'),
+	Async = require('async'),
 	Request = require('request'),
 	Cheerio = require('cheerio');
 
 var REQUEST_TIMEOUT_MS = 1000 * 10;
+var UPDLOAD_TIMEOUT_MS = 1000 * 60;
 
 var MESSAGE_KINDS = {
 	KIND_INFO: '💬',
@@ -38,69 +40,6 @@ function setTamTamBotToken(token) {
 	TAMTAM_BOT_TOKEN = token;
 }
 
-
-/*
-function sendToTamTam(moviePath, chatId, chatTitle, ret) {
-	Request.post(`https://botapi.tamtam.chat/uploads?access_token=${TT_BOT_TOKEN}&type=video`, function(error, response, body) {
-
-
-		var body = parseJSONObject(body);
-		if (!body || typeof body.url !== 'string') return;
-
-		console.info(body)
-
-		Request.post({url: body.url, formData: {
-			data: FS.createReadStream(moviePath)
-		}}, function(error, httpResponse, body) {
-
-			body = parseJSONObject(body);
-			if (!body || typeof body.token !== 'string') return;
-
-			console.info(body)
-
-			function sendAtt() {
-				Request.post({
-				  uri: `https://botapi.tamtam.chat/messages?access_token=${TT_BOT_TOKEN}&chat_id=${chatId}`,
-				  method: 'POST',
-				  json: {
-					 "text": chatTitle,
-					 "attachments": [
-					     {
-					         "type": "video",
-					         "payload": {
-					             "token": body.token
-					         }
-					     }
-					 ]
-					}
-				}, function(error, response, body) {
-
-					if (typeof response === 'object' &&
-						typeof response.body === 'object' &&
-						response.body.code === 'attachment.not.ready') {
-						console.info('retry')
-						setTimeout(sendAtt, 1000);
-					}
-
-					else {
-						console.info('ok')
-						ret();
-					}
-
-
-				})
-
-			}
-
-			sendAtt();
-
-
-		});
-
-	});
-}
-*/
-
 function getString(expression, fallback) {
 	var result;
 	try { result = typeof expression === 'function' ? expression() : expression; } catch (exception) {}
@@ -108,6 +47,12 @@ function getString(expression, fallback) {
 	if (arguments.length > 1) return fallback;
 }
 
+function fileExists(path) {
+	return (
+		FS.existsSync(path) &&
+		FS.lstatSync(path).isFile()
+	);
+}
 
 function cleanupTextTelegram(text) {
 	text = String(text).trim();
@@ -135,16 +80,14 @@ function cleanupTextTamtam(text) {
 	return $('body').html();
 }
 
-
 function sendTextTamTam(id, text, ret) {
 	if (!TAMTAM_BOT_TOKEN) return ret(true);
 	Request.post({
 		uri: `https://botapi.tamtam.chat/messages?access_token=${TAMTAM_BOT_TOKEN}&user_id=${id}`,
-		method: 'POST',
 		timeout: REQUEST_TIMEOUT_MS,
 		json: {
+			'version': '0.3.0',
 			'text': text,
-			'version': '0.3.0'
 		}
 	}, function(error, response, body) {
 		ret(getString(() => body.message.body.text) !== text);
@@ -155,7 +98,6 @@ function sendTextTelegram(id, text, ret) {
 	if (!TELEGRAM_BOT_TOKEN) return ret(true);
 	Request.post({
 		uri: `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
-		method: 'POST',
 		timeout: REQUEST_TIMEOUT_MS,
 		json: {
 			'chat_id': id,
@@ -167,16 +109,16 @@ function sendTextTelegram(id, text, ret) {
 	});
 }
 
-function sendText(ids, text, ret, prefix) {
+function sendText(ids, text, ret, icon) {
 
 	var errorIds = [];
 
 	if (!(ids instanceof Array)) ids = [ids];
 	if (typeof text !== 'string') return ret(ids);
 	if (typeof ret !== 'function') ret = (function(){});
-	if (typeof prefix !== 'string') prefix = MESSAGE_KINDS.KIND_INFO;
+	if (typeof icon !== 'string') icon = MESSAGE_KINDS.KIND_INFO;
 
-	text = ((prefix ? prefix + ' ' : '') + text);
+	text = ((icon ? icon + ' ' : '') + text);
 	var telegramText = cleanupTextTelegram(text);
 	var tamtamText = cleanupTextTamtam(text);
 
@@ -202,9 +144,119 @@ function sendText(ids, text, ret, prefix) {
 	});
 }
 
+function sendVideoTelegram(id, streamOrId, ret, text) {
+	if (!TELEGRAM_BOT_TOKEN) return ret();
+	Request.post({
+		uri: `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendVideo`,
+		timeout: (
+			typeof streamOrId === 'string' ?
+			REQUEST_TIMEOUT_MS :
+			UPDLOAD_TIMEOUT_MS
+		),
+		formData: {
+			chat_id: id,
+			parse_mode: 'HTML',
+			caption: text,
+			video: streamOrId
+		}
+	}, function optionalCallback(error, response, body) {
+		ret(getString(() => JSON.parse(body).result.video.file_id));
+	});
+}
+
+function sendVideoTamtam(id, streamOrId, ret, text) {
+	if (!TAMTAM_BOT_TOKEN) return ret();
+	console.info(typeof streamOrId)
+	if (typeof streamOrId === 'string') {
+		var attempts = 5, isSuccess = false;
+		Async.forever(function(next) {
+			if (!--attempts) return next(true);
+			Request.post({
+				uri: `https://botapi.tamtam.chat/messages?access_token=${TAMTAM_BOT_TOKEN}&chat_id=${id}`,
+				timeout: REQUEST_TIMEOUT_MS,
+				json: {
+					'version': '0.3.0',
+					'text': text,
+					'attachments': [{
+						'type': 'video',
+						'payload': {
+							'token': streamOrId
+						}
+					}]
+				}
+			}, function(error, response, body) {
+				console.info(body)
+				if (getString(() => body.code) === 'attachment.not.ready') {
+					setTimeout(next, 1000);
+				} else {
+					isSuccess = !!getString(() => body.message.body.mid);
+					next(true);
+				}
+			});
+		}, function() {
+			ret(!isSuccess);
+		});
+	} else {
+		Request.post({
+			uri: `https://botapi.tamtam.chat/uploads?access_token=${TAMTAM_BOT_TOKEN}&type=video`,
+			timeout: REQUEST_TIMEOUT_MS
+		}, function(error, response, body) {
+			var uploadUrl = getString(() => JSON.parse(body).url);
+			if (!uploadUrl) return ret();
+			Request.post({
+				url: uploadUrl,
+				timeout: UPDLOAD_TIMEOUT_MS,
+				formData: { data: streamOrId }
+			}, function(error, response, body) {
+				var fileId = getString(() => JSON.parse(body).token);
+				if (!fileId) return ret();
+				sendVideoTamtam(id, fileId, ret, text);
+			});
+		});
+	}
+}
+
+function sendVideo(ids, path, ret, text) {
+
+	var errorIds = [];
+	if (!(ids instanceof Array)) ids = [ids];
+	if (!fileExists(path)) return ret(ids);
+	if (typeof text !== 'string') text = '';
+	if (typeof ret !== 'function') ret = (function(){});
+
+	var tgFileId;
+	var telegramText = cleanupTextTelegram(text);
+	var tamtamText = cleanupTextTamtam(text);
+
+
+	Async.eachSeries(ids, function(id, nextId) {
+		id = String(id);
+		var chatOrUserId = id.slice(2);
+		if (id.startsWith('tt')) {
+			sendVideoTamtam(chatOrUserId, FS.createReadStream(path), function(fileId) {
+				if (!fileId) errorIds.push(id);
+				nextId();
+			}, tamtamText);
+		} else if (id.startsWith('tg')) {
+			if (!tgFileId) tgFileId = FS.createReadStream(path);
+			sendVideoTelegram(chatOrUserId, tgFileId, function(fileId) {
+				if (!fileId) errorIds.push(id);
+				else tgFileId = fileId;
+				nextId();
+			}, telegramText);
+		} else {
+			errorIds.push(id);
+			nextId();
+		}
+	}, function() {
+		ret(errorIds.length ? errorIds : null);
+	});
+}
+
 module.exports = {
 	...MESSAGE_KINDS,
 	setTelegramBotToken: setTelegramBotToken,
 	setTamTamBotToken: setTamTamBotToken,
 	sendTextMessage: sendText,
+	sendVideo: sendVideo
 };
