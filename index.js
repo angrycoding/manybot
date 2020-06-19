@@ -166,7 +166,6 @@ function sendVideoTelegram(id, streamOrId, ret, text) {
 
 function sendVideoTamtam(id, streamOrId, ret, text) {
 	if (!TAMTAM_BOT_TOKEN) return ret();
-	console.info(typeof streamOrId)
 	if (typeof streamOrId === 'string') {
 		var attempts = 5, isSuccess = false;
 		Async.forever(function(next) {
@@ -185,7 +184,6 @@ function sendVideoTamtam(id, streamOrId, ret, text) {
 					}]
 				}
 			}, function(error, response, body) {
-				console.info(body)
 				if (getString(() => body.code) === 'attachment.not.ready') {
 					setTimeout(next, 1000);
 				} else {
@@ -233,8 +231,8 @@ function sendVideo(ids, path, ret, text) {
 		id = String(id);
 		var chatOrUserId = id.slice(2);
 		if (id.startsWith('tt')) {
-			sendVideoTamtam(chatOrUserId, FS.createReadStream(path), function(fileId) {
-				if (!fileId) errorIds.push(id);
+			sendVideoTamtam(chatOrUserId, FS.createReadStream(path), function(error) {
+				if (error) errorIds.push(id);
 				nextId();
 			}, tamtamText);
 		} else if (id.startsWith('tg')) {
