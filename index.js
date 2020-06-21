@@ -238,6 +238,89 @@ function sendVideoTelegram(chatIds, path, ret, caption, icon) {
 	});
 }
 
+
+
+
+
+
+function getWebhookTelegram(ret) {
+	if (!TELEGRAM_BOT_TOKEN) return ret([]);
+	if (typeof ret !== 'function') ret = DUMMY_FUNC;
+	Request.post({
+		uri: `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getWebhookInfo`,
+		timeout: REQUEST_TIMEOUT_MS,
+	}, function(error, response, body) {
+		var webhookUrl = Utils.getString(() => JSON.parse(body).result.url, '');
+		ret(webhookUrl ? [webhookUrl] : []);
+	});
+}
+
+function getWebhookTamtam(ret) {
+	if (!TAMTAM_BOT_TOKEN) return ret([]);
+	if (typeof ret !== 'function') ret = DUMMY_FUNC;
+	Request.get({
+		uri: `https://botapi.tamtam.chat/subscriptions?access_token=${TAMTAM_BOT_TOKEN}`,
+		timeout: REQUEST_TIMEOUT_MS,
+	}, function(error, response, body) {
+		var subscriptions = Utils.getArray(() => JSON.parse(body).subscriptions, []);
+		var urls = subscriptions.map(subscription => Utils.getString(() => subscription.url));
+		ret(urls.filter(url => url));
+	});
+}
+
+function deleteWebhookTelegram(ret) {
+	if (!TELEGRAM_BOT_TOKEN) return ret([]);
+	if (typeof ret !== 'function') ret = DUMMY_FUNC;
+	Request.post({
+		uri: `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/deleteWebhook`,
+		timeout: REQUEST_TIMEOUT_MS,
+	}, () => getWebhookTelegram(ret));
+}
+
+function deleteWebhookTamtam(ret) {
+	if (!TAMTAM_BOT_TOKEN) return ret([]);
+	if (typeof ret !== 'function') ret = DUMMY_FUNC;
+	getWebhookTamtam(function(webhookUrls) {
+		Async.eachSeries(webhookUrls, function(webhookUrl, nextWebhookUrl) {
+			Request.delete({
+				uri: `https://botapi.tamtam.chat/subscriptions?access_token=${TAMTAM_BOT_TOKEN}&url=${webhookUrl}`,
+				timeout: REQUEST_TIMEOUT_MS,
+			}, () => nextWebhookUrl());
+		}, () => getWebhookTamtam(ret));
+	});
+}
+
+function setWebhookTelegram(url, ret) {
+	if (!TELEGRAM_BOT_TOKEN) return ret([]);
+	if (typeof ret !== 'function') ret = DUMMY_FUNC;
+	Request.post({
+		uri: `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook`,
+		timeout: REQUEST_TIMEOUT_MS,
+		json: {
+			'url': url,
+		}
+	}, () => getWebhookTelegram(ret));
+}
+
+function setWebhookTamtam(url, ret) {
+	if (!TAMTAM_BOT_TOKEN) return ret([]);
+	if (typeof ret !== 'function') ret = DUMMY_FUNC;
+	deleteWebhookTamtam(function() {
+		Request.post({
+			uri: `https://botapi.tamtam.chat/subscriptions?access_token=${TAMTAM_BOT_TOKEN}`,
+			timeout: REQUEST_TIMEOUT_MS,
+			json: {
+				'version': '0.3.0',
+				'url': url
+			}
+		}, () => getWebhookTamtam(ret));
+	});
+}
+
+
+
+
+
 function sendText(chatIds, text, ret, icon) {
 	ret = (typeof ret === 'function' ? ret : DUMMY_FUNC);
 	chatIds = Utils.cleanupChatIds(chatIds);
@@ -282,14 +365,34 @@ function sendVideo(chatIds, path, ret, caption, icon) {
 	}, () => ret(errorChatIds));
 }
 
+
+
+
+
+
+
 module.exports = {
+
 	...MESSAGE_KINDS,
+
 	setTelegramBotToken,
 	setTamTamBotToken,
 	sendTextTamtam,
 	sendTextTelegram,
 	sendVideoTamtam,
 	sendVideoTelegram,
+
+	getWebhookTelegram,
+	getWebhookTamtam,
+	deleteWebhookTelegram,
+	deleteWebhookTamtam,
+	setWebhookTelegram,
+	setWebhookTamtam,
+
+
 	sendText,
 	sendVideo,
+
+
+	// deleteWebhook
 };

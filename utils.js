@@ -16,6 +16,13 @@ function getArray(expression, fallback) {
 	if (arguments.length > 1) return fallback;
 }
 
+function getBoolean(expression, fallback) {
+	var result;
+	try { result = typeof expression === 'function' ? expression() : expression; } catch (exception) {}
+	if (typeof result === 'boolean') return result;
+	if (arguments.length > 1) return fallback;
+}
+
 function arrayGroup(array, grouper) {
 	array = getArray(array, [array]);
 	if (typeof grouper !== 'function') {
@@ -95,6 +102,7 @@ function cleanupChatIds(chatIds, defaultPrefix) {
 
 module.exports = {
 	getArray: getArray,
+	getBoolean: getBoolean,
 	getString: getString,
 	fileExists: fileExists,
 	cleanupChatIds: cleanupChatIds,
