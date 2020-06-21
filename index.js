@@ -365,6 +365,20 @@ function sendVideo(chatIds, path, ret, caption, icon) {
 	}, () => ret(errorChatIds));
 }
 
+function processUpdate(update) {
+	if (typeof update === 'string')
+		update = Utils.parseJSONObject(update);
+	if (typeof update !== 'object') return;
+
+	console.info('processUpdate');
+	console.info(update);
+
+	// if (Utils.getNumber(() => body.timestamp)) {
+	// 	onTTUpdateReceived(body);
+	// }
+	// 	else onTGUpdateReceived(body);
+}
+
 
 
 
@@ -392,7 +406,7 @@ module.exports = {
 
 	sendText,
 	sendVideo,
-
+	processUpdate
 
 	// deleteWebhook
 };

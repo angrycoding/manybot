@@ -23,6 +23,14 @@ function getBoolean(expression, fallback) {
 	if (arguments.length > 1) return fallback;
 }
 
+function parseJSONObject(value, fallback) {
+	try {
+		value = JSON.parse(value);
+		if (typeof value === 'object') return value;
+	} catch (exception) {}
+	return fallback;
+}
+
 function arrayGroup(array, grouper) {
 	array = getArray(array, [array]);
 	if (typeof grouper !== 'function') {
@@ -104,6 +112,7 @@ module.exports = {
 	getArray: getArray,
 	getBoolean: getBoolean,
 	getString: getString,
+	parseJSONObject: parseJSONObject,
 	fileExists: fileExists,
 	cleanupChatIds: cleanupChatIds,
 	createReadStream: createReadStream
