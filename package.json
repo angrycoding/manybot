@@ -1,6 +1,6 @@
 {
   "name": "manybot",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "dependencies": {
     "async": "^3.2.0",
     "cheerio": "^1.0.0-rc.3",
