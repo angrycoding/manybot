@@ -23,6 +23,20 @@ function getBoolean(expression, fallback) {
 	if (arguments.length > 1) return fallback;
 }
 
+function getObject(expression, fallback) {
+	var result;
+	try { result = typeof expression === 'function' ? expression() : expression; } catch (exception) {}
+	if (typeof result === 'object' && result !== null) return result;
+	return fallback;
+}
+
+function getNumber(expression, fallback) {
+	var result;
+	try { result = typeof expression === 'function' ? expression() : expression; } catch (exception) {}
+	if (typeof result === 'number' && !isNaN(result)) return result;
+	return fallback;
+}
+
 function parseJSONObject(value, fallback) {
 	try {
 		value = JSON.parse(value);
@@ -109,9 +123,12 @@ function cleanupChatIds(chatIds, defaultPrefix) {
 }
 
 module.exports = {
+	DUMMY_FUNC: (() => 0),
 	getArray: getArray,
 	getBoolean: getBoolean,
 	getString: getString,
+	getNumber: getNumber,
+	getObject: getObject,
 	parseJSONObject: parseJSONObject,
 	fileExists: fileExists,
 	cleanupChatIds: cleanupChatIds,
