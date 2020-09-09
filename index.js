@@ -241,6 +241,7 @@ module.exports = {
 	setOnChatUpdateCallback,
 
 	...tokens,
+	...require('./sendFile'),
 	...require('./sendText'),
 	...require('./sendVideo'),
 	...require('./getChatInfo')
