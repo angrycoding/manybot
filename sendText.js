@@ -67,7 +67,8 @@ function sendTextTamtam(chatIds, text, ret, icon) {
 				// }]
 			}
 		}, function(error, response, body) {
-			if (Utils.getString(() => body.message.body.text) !== text) {
+			if (!Utils.getString(() => body.message.body.text) ||
+				!Utils.getString(() => body.message.body.mid)) {
 				errorChatIds.push(originalChatId);
 			}
 			nextChatId();
