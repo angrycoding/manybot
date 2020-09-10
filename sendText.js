@@ -15,7 +15,7 @@ function sendTextTelegram(chatIds, text, ret, icon) {
 	if (!token) return ret(errorChatIds.concat(validChatIds));
 	text = CleanupText.telegram(text, icon);
 	if (!text) return ret(errorChatIds.concat(validChatIds));
-	Async.eachSeries(validChatIds, function(originalChatId, nextChatId) {
+	Async.eachLimit(validChatIds, Settings.MAX_PARALLEL_OP_COUNT, function(originalChatId, nextChatId) {
 		var realChatId = (originalChatId.startsWith('tg') ? originalChatId.slice(2) : originalChatId);
 		Request.post({
 			uri: `https://api.telegram.org/bot${token}/sendMessage`,
@@ -45,13 +45,17 @@ function sendTextTamtam(chatIds, text, ret, icon) {
 	if (!token) return ret(errorChatIds.concat(validChatIds));
 	text = CleanupText.tamtam(text, icon);
 	if (!text) return ret(errorChatIds.concat(validChatIds));
-	Async.eachSeries(validChatIds, function(originalChatId, nextChatId) {
+	Async.eachLimit(validChatIds, Settings.MAX_PARALLEL_OP_COUNT, function(originalChatId, nextChatId) {
 		var realChatId = (originalChatId.startsWith('tt') ? originalChatId.slice(2) : originalChatId);
 		Request.post({
-			uri: `https://botapi.tamtam.chat/messages?access_token=${token}&user_id=${realChatId}&disable_link_preview=true`,
+			uri: (
+				realChatId.startsWith('-') ?
+				`https://botapi.tamtam.chat/messages?access_token=${token}&chat_id=${realChatId}&disable_link_preview=true` :
+				`https://botapi.tamtam.chat/messages?access_token=${token}&user_id=${realChatId}&disable_link_preview=true`
+			),
 			timeout: Settings.REQUEST_TIMEOUT_MS,
 			json: {
-				'version': '0.3.0',
+				'version': Settings.TAMTAM_API_VERSION,
 				'text': text,
 				// 'attachments': [{
 				// 	type: 'inline_keyboard',
@@ -80,7 +84,7 @@ function sendText(chatIds, text, ret, icon) {
 	ret = (typeof ret === 'function' ? ret : Utils.DUMMY_FUNC);
 	chatIds = Utils.cleanupChatIds(chatIds);
 	var errorChatIds = [];
-	Async.eachOfSeries(chatIds, function(chatIds, type, nextType) {
+	Async.eachOf(chatIds, function(chatIds, type, nextType) {
 		if (type === 'tg') {
 			sendTextTelegram(chatIds, text, function(chatIds) {
 				Array.prototype.push.apply(errorChatIds, chatIds);

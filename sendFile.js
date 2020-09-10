@@ -14,16 +14,15 @@ function sendFileTamtam(chatIds, path, ret, caption, icon) {
 	if (!validChatIds.length) return ret(errorChatIds.concat(validChatIds));
 	var token = Tokens.getTamtamBotToken();
 	if (!token) return ret(errorChatIds.concat(validChatIds));
-	if (!path.endsWith('.mp4')) return ret(errorChatIds.concat(validChatIds));
 	caption = CleanupText.tamtam(caption, icon);
-	Async.eachSeries(validChatIds, function(originalChatId, nextChatId) {
+	Async.eachLimit(validChatIds, Settings.MAX_PARALLEL_OP_COUNT, function(originalChatId, nextChatId) {
 		Utils.createReadStream(path, (stream) => {
 			if (!stream) {
 				errorChatIds.push(originalChatId);
 				return nextChatId();
 			}
 			Request.post({
-				uri: `https://botapi.tamtam.chat/uploads?access_token=${token}&type=video`,
+				uri: `https://botapi.tamtam.chat/uploads?access_token=${token}&type=file`,
 				timeout: Settings.REQUEST_TIMEOUT_MS
 			}, function(error, response, body) {
 				var uploadUrl = Utils.getString(() => JSON.parse(body).url);
@@ -41,18 +40,22 @@ function sendFileTamtam(chatIds, path, ret, caption, icon) {
 						errorChatIds.push(originalChatId);
 						return nextChatId();
 					}
-					var attempts = 5, isSuccess = false;
+					var attempts = Settings.TT_UPLOAD_MAX_ATTEMPTS, isSuccess = false;
 					var realChatId = (originalChatId.startsWith('tt') ? originalChatId.slice(2) : originalChatId);
 					Async.forever(function(nextAttempt) {
 						if (!--attempts) return nextAttempt(true);
 						Request.post({
-							uri: `https://botapi.tamtam.chat/messages?access_token=${token}&chat_id=${realChatId}`,
+							uri: (
+								realChatId.startsWith('-') ?
+								`https://botapi.tamtam.chat/messages?access_token=${token}&chat_id=${realChatId}` :
+								`https://botapi.tamtam.chat/messages?access_token=${token}&user_id=${realChatId}`
+							),
 							timeout: Settings.REQUEST_TIMEOUT_MS,
 							json: {
-								'version': '0.3.0',
+								'version': Settings.TAMTAM_API_VERSION,
 								'text': caption,
 								'attachments': [{
-									'type': 'video',
+									'type': 'file',
 									'payload': {
 										'token': fileToken
 									}
@@ -60,7 +63,7 @@ function sendFileTamtam(chatIds, path, ret, caption, icon) {
 							}
 						}, function(error, response, body) {
 							if (Utils.getString(() => body.code) === 'attachment.not.ready') {
-								setTimeout(nextAttempt, 1000);
+								setTimeout(nextAttempt, Settings.TT_UPLOAD_INTERVAL_MS);
 							} else {
 								isSuccess = !!Utils.getString(() => body.message.body.mid);
 								nextAttempt(true);
@@ -76,6 +79,7 @@ function sendFileTamtam(chatIds, path, ret, caption, icon) {
 	}, () => ret(errorChatIds));
 }
 
+
 function sendFileTelegram(chatIds, path, ret, caption, icon) {
 	chatIds = Utils.cleanupChatIds(chatIds, 'tg');
 	var errorChatIds = Utils.getArray(() => chatIds.invalid, []);
@@ -85,34 +89,22 @@ function sendFileTelegram(chatIds, path, ret, caption, icon) {
 	var token = Tokens.getTelegramBotToken();
 	if (!token) return ret(errorChatIds.concat(validChatIds));
 	caption = CleanupText.telegram(caption, icon);
-	Utils.createReadStream(path, (streamOrId) => {
-		if (!streamOrId) return ret(errorChatIds.concat(validChatIds));
-		Async.eachSeries(validChatIds, function(originalChatId, nextChatId) {
-			var realChatId = (originalChatId.startsWith('tg') ? originalChatId.slice(2) : originalChatId);
-			Request.post({
-				url: `https://api.telegram.org/bot${token}/sendDocument`,
-				timeout: (
-					streamOrId instanceof FS.ReadStream ?
-					Settings.UPDLOAD_TIMEOUT_MS :
-					Settings.REQUEST_TIMEOUT_MS
-				),
-				formData: {
-					chat_id: realChatId,
-					parse_mode: 'HTML',
-					caption: caption,
-					document: streamOrId
-				}
-			}, (error, response, body) => {
-				console.info(body)
-				var fileId = Utils.getString(() => JSON.parse(body).result.document.file_id);
-				if (!fileId) {
-					errorChatIds.push(originalChatId);
-				} else if (streamOrId instanceof FS.ReadStream) {
-					streamOrId = fileId;
-				}
-				nextChatId();
-			});
-		}, () => ret(errorChatIds));
+	Utils.createReadStream(path, (stream) => {
+		if (!stream) return ret(errorChatIds.concat(validChatIds));
+		var originalChatId = validChatIds.shift();
+		Utils.sendFileTelegram(token, 'sendDocument', originalChatId, stream, caption, function(fileId) {
+			if (!fileId) {
+				errorChatIds.push(originalChatId);
+				ret(errorChatIds.concat(validChatIds));
+			} else {
+				Async.eachLimit(validChatIds, Settings.MAX_PARALLEL_OP_COUNT, function(originalChatId, nextChatId) {
+					Utils.sendFileTelegram(token, 'sendDocument', originalChatId, fileId, caption, function(fileId) {
+						if (!fileId) errorChatIds.push(originalChatId);
+						nextChatId();
+					});
+				}, () => ret(errorChatIds));
+			}
+		});
 	});
 }
 
@@ -120,7 +112,7 @@ function sendFile(chatIds, path, ret, caption, icon) {
 	ret = (typeof ret === 'function' ? ret : Utils.DUMMY_FUNC);
 	chatIds = Utils.cleanupChatIds(chatIds);
 	var errorChatIds = [];
-	Async.eachOfSeries(chatIds, function(chatIds, type, nextType) {
+	Async.eachOf(chatIds, function(chatIds, type, nextType) {
 		if (type === 'tg') {
 			sendFileTelegram(chatIds, path, function(chatIds) {
 				Array.prototype.push.apply(errorChatIds, chatIds);

@@ -1,4 +1,6 @@
 var FS = require('fs');
+var Request = require('request');
+var Settings = require('./settings');
 var DUMMY_FUNC = (() => 0);
 var SUPPORTED_PREFIXES = ['tt', 'tg'];
 
@@ -122,6 +124,28 @@ function cleanupChatIds(chatIds, defaultPrefix) {
 	});
 }
 
+function sendFileTelegram(token, method, originalChatId, streamOrId, caption, ret) {
+	var fieldName = (method === 'sendVideo' ? 'video' : 'document');
+	var realChatId = (originalChatId.startsWith('tg') ? originalChatId.slice(2) : originalChatId);
+	Request.post({
+		url: `https://api.telegram.org/bot${token}/${method}`,
+		timeout: (
+			streamOrId instanceof FS.ReadStream ?
+			Settings.UPDLOAD_TIMEOUT_MS :
+			Settings.REQUEST_TIMEOUT_MS
+		),
+		formData: {
+			chat_id: realChatId,
+			parse_mode: 'HTML',
+			caption: caption,
+			[fieldName]: streamOrId
+		}
+	}, (error, response, body) => {
+		var fileId = getString(() => JSON.parse(body).result[fieldName].file_id);
+		ret(fileId);
+	});
+}
+
 module.exports = {
 	DUMMY_FUNC: (() => 0),
 	getArray: getArray,
@@ -132,5 +156,6 @@ module.exports = {
 	parseJSONObject: parseJSONObject,
 	fileExists: fileExists,
 	cleanupChatIds: cleanupChatIds,
-	createReadStream: createReadStream
+	createReadStream: createReadStream,
+	sendFileTelegram: sendFileTelegram
 };

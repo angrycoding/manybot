@@ -145,7 +145,7 @@ function setWebhookTamtam(url, ret) {
 			uri: `https://botapi.tamtam.chat/subscriptions?access_token=${TAMTAM_BOT_TOKEN}`,
 			timeout: Settings.REQUEST_TIMEOUT_MS,
 			json: {
-				'version': '0.3.0',
+				'version': Settings.TAMTAM_API_VERSION,
 				'url': url
 			}
 		}, () => getWebhookTamtam(ret));
