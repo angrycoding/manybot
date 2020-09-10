@@ -2,7 +2,8 @@ var Cheerio = require('cheerio'),
 	Utils = require('./utils');
 
 function telegram(text, icon) {
-	text = String(text).trim();
+	if (typeof text !== 'string') return '';
+	text = text.trim();
 	text = text.replace(/[\n\t]+/g, ' ');
 	text = text.replace(/[\n\t\s]*(<br\s*\/>|<br>)[\n\t\s]*/g, '\n');
 
@@ -36,7 +37,8 @@ function telegram(text, icon) {
 }
 
 function tamtam(text, icon) {
-	text = String(text).trim();
+	if (typeof text !== 'string') return '';
+	text = text.trim();
 	text = text.replace(/[\n\t]+/g, ' ');
 	text = text.replace(/[\n\t\s]*(<br\s*\/>|<br>)[\n\t\s]*/g, '\n');
 	var $ = Cheerio.load(text, {
