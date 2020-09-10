@@ -77,7 +77,7 @@ function createReadStream(path, ret) {
 			this.removeAllListeners();
 			this.close();
 			ret();
-		}).on('ready', function() {
+		}).on('open', function() {
 			this.removeAllListeners();
 			ret(this);
 		});
