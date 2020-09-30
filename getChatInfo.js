@@ -67,7 +67,7 @@ function getFileTamtam(fileUrl, ret) {
 	});
 }
 
-function getChatInfoTamtam(chatId, ret) {
+function getChatOwnerTamtam(chatId, ret) {
 	if (typeof ret !== 'function') return;
 	var token = Tokens.getTamtamBotToken();
 	if (!token) return ret();
@@ -75,21 +75,40 @@ function getChatInfoTamtam(chatId, ret) {
 	var realChatId = (chatId.startsWith('tt') ? chatId.slice(2) : chatId);
 	if (!realChatId) return ret();
 	Request.get({
-		uri: `https://botapi.tamtam.chat/chats/${realChatId}?access_token=${token}`,
+		uri: `https://botapi.tamtam.chat/chats/${realChatId}/members/admins?access_token=${token}`,
 		timeout: Settings.REQUEST_TIMEOUT_MS
 	}, function(error, response, body) {
 		body = Utils.parseJSONObject(body);
-		var chatType = Utils.getString(() => body.type);
-		if (!chatType || chatType === 'dialog') return ret();
-		var ownerId = Utils.getNumber(() => body.owner_id);
+		var owner = Utils.getArray(() => body.members, []);
+		owner = owner.filter(u => Utils.getBoolean(() => u.is_owner, false));
+		ret(owner.length ? String(Utils.getNumber(() => owner[0].user_id, '')) : undefined);
+	});
+}
+
+function getChatInfoTamtam(chatId, ret) {
+	if (typeof ret !== 'function') return;
+	var token = Tokens.getTamtamBotToken();
+	if (!token) return ret();
+	chatId = Utils.getString(chatId, '');
+	var realChatId = (chatId.startsWith('tt') ? chatId.slice(2) : chatId);
+	if (!realChatId) return ret();
+	getChatOwnerTamtam(realChatId, function(ownerId) {
 		if (!ownerId) return ret();
-		getFileTamtam(Utils.getString(() => body.icon.url, ''), function(chatPhotoBase64) {
-			ret(
-				`tt${ownerId}`,
-				Utils.getString(() => body.title, ''),
-				Utils.getString(() => body.description),
-				chatPhotoBase64
-			);
+		Request.get({
+			uri: `https://botapi.tamtam.chat/chats/${realChatId}?access_token=${token}`,
+			timeout: Settings.REQUEST_TIMEOUT_MS
+		}, function(error, response, body) {
+			body = Utils.parseJSONObject(body);
+			var chatType = Utils.getString(() => body.type);
+			if (!chatType || chatType === 'dialog') return ret();
+			getFileTamtam(Utils.getString(() => body.icon.url, ''), function(chatPhotoBase64) {
+				ret(
+					`tt${ownerId}`,
+					Utils.getString(() => body.title, ''),
+					Utils.getString(() => body.description),
+					chatPhotoBase64
+				);
+			});
 		});
 	});
 }
