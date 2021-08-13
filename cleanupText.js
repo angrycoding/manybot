@@ -1,8 +1,8 @@
 var Cheerio = require('cheerio'),
 	Utils = require('./utils');
 
-function telegram(text, icon) {
-	if (typeof text === 'function') text = text('tg');
+function telegram(text, icon, chatId) {
+	if (typeof text === 'function') text = text(chatId);
 	if (typeof text !== 'string') return '';
 	text = text.trim();
 	text = text.replace(/[\n\t]+/g, ' ');
@@ -37,8 +37,8 @@ function telegram(text, icon) {
 	return text;
 }
 
-function tamtam(text, icon) {
-	if (typeof text === 'function') text = text('tt');
+function tamtam(text, icon, chatId) {
+	if (typeof text === 'function') text = text(chatId);
 	if (typeof text !== 'string') return '';
 	text = text.trim();
 	text = text.replace(/[\n\t]+/g, ' ');

@@ -1,7 +1,7 @@
 var FS = require('fs'),
 	Async = require('async'),
-	Request = require('request'),
-	Utils = require('./utils');
+	Utils = require('./utils'),
+	Request = require('request');
 
 var Settings = require('./settings');
 

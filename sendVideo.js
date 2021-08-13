@@ -15,7 +15,6 @@ function sendVideoTamtam(chatIds, path, ret, caption, icon) {
 	var token = Tokens.getTamtamBotToken();
 	if (!token) return ret(errorChatIds.concat(validChatIds));
 	if (!path.endsWith('.mp4')) return ret(errorChatIds.concat(validChatIds));
-	caption = CleanupText.tamtam(caption, icon);
 	Async.eachLimit(validChatIds, Settings.MAX_PARALLEL_OP_COUNT, function(originalChatId, nextChatId) {
 		Utils.createReadStream(path, (stream) => {
 			if (!stream) {
@@ -43,6 +42,7 @@ function sendVideoTamtam(chatIds, path, ret, caption, icon) {
 					}
 					var attempts = Settings.TT_UPLOAD_MAX_ATTEMPTS, isSuccess = false;
 					var realChatId = (originalChatId.startsWith('tt') ? originalChatId.slice(2) : originalChatId);
+					const captionStr = CleanupText.tamtam(caption, icon, originalChatId);
 					Async.forever(function(nextAttempt) {
 						if (!--attempts) return nextAttempt(true);
 						Request.post({
@@ -54,7 +54,7 @@ function sendVideoTamtam(chatIds, path, ret, caption, icon) {
 							timeout: Settings.REQUEST_TIMEOUT_MS,
 							json: {
 								'version': Settings.TAMTAM_API_VERSION,
-								'text': caption,
+								'text': captionStr,
 								'attachments': [{
 									'type': 'video',
 									'payload': {
@@ -89,17 +89,16 @@ function sendVideoTelegram(chatIds, path, ret, caption, icon) {
 	var token = Tokens.getTelegramBotToken();
 	if (!token) return ret(errorChatIds.concat(validChatIds));
 	if (!path.endsWith('.mp4')) return ret(errorChatIds.concat(validChatIds));
-	caption = CleanupText.telegram(caption, icon);
 	Utils.createReadStream(path, (stream) => {
 		if (!stream) return ret(errorChatIds.concat(validChatIds));
 		var originalChatId = validChatIds.shift();
-		Utils.sendFileTelegram(token, 'sendVideo', originalChatId, stream, caption, function(fileId) {
+		Utils.sendFileTelegram(token, 'sendVideo', originalChatId, stream, CleanupText.telegram(caption, icon, originalChatId), (fileId) => {
 			if (!fileId) {
 				errorChatIds.push(originalChatId);
 				ret(errorChatIds.concat(validChatIds));
 			} else {
-				Async.eachLimit(validChatIds, Settings.MAX_PARALLEL_OP_COUNT, function(originalChatId, nextChatId) {
-					Utils.sendFileTelegram(token, 'sendVideo', originalChatId, fileId, caption, function(fileId) {
+				Async.eachLimit(validChatIds, Settings.MAX_PARALLEL_OP_COUNT, (originalChatId, nextChatId) => {
+					Utils.sendFileTelegram(token, 'sendVideo', originalChatId, fileId, CleanupText.telegram(caption, icon, originalChatId), (fileId) => {
 						if (!fileId) errorChatIds.push(originalChatId);
 						nextChatId();
 					});
