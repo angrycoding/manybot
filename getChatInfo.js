@@ -1,13 +1,17 @@
-var Crypto = require('crypto'),
+const
+	OS = require('os'),
+	Path = require('path'),
+	Crypto = require('crypto'),
 	Request = require('request'),
-	Cache = require('persistent-cache'),
 	ImageType = require('image-type'),
+	Cache = require('persistent-cache'),
 	Tokens = require('./tokens'),
 	Utils = require('./utils'),
 	Settings = require('./settings');
 
 var fileStorage = Cache({
 	// cache for 7 days
+	base: Path.resolve(OS.tmpdir(), 'manybot'),
 	duration: 1000 * 60 * 60 * 24 * 7
 });
 
