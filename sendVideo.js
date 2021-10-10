@@ -1,10 +1,13 @@
 var FS = require('fs'),
+	OS = require('os'),
+	Path = require('path'),
 	Async = require('async'),
 	Request = require('request'),
 	Tokens = require('./tokens'),
 	Utils = require('./utils'),
 	CleanupText = require('./cleanupText'),
-	Settings = require('./settings');
+	Settings = require('./settings'),
+	tmpDir = OS.tmpdir();
 
 function sendVideoTamtam(chatIds, path, ret, caption, icon) {
 	chatIds = Utils.cleanupChatIds(chatIds, 'tt');
@@ -112,22 +115,29 @@ function sendVideo(chatIds, path, ret, caption, icon) {
 	ret = (typeof ret === 'function' ? ret : Utils.DUMMY_FUNC);
 	chatIds = Utils.cleanupChatIds(chatIds);
 	var errorChatIds = [];
-	Async.eachOf(chatIds, function(chatIds, type, nextType) {
-		if (type === 'tg') {
-			sendVideoTelegram(chatIds, path, function(chatIds) {
+	const tempPath = Path.resolve(tmpDir, Utils.generateRandomString(32) + Path.extname(path));
+	FS.copyFile(path, tempPath, (error) => {
+		if (error) return ret(chatIds);
+		Async.eachOf(chatIds, function(chatIds, type, nextType) {
+			if (type === 'tg') {
+				sendVideoTelegram(chatIds, path, function(chatIds) {
+					Array.prototype.push.apply(errorChatIds, chatIds);
+					nextType();
+				}, caption, icon);
+			} else if (type === 'tt') {
+				sendVideoTamtam(chatIds, path, function(chatIds) {
+					Array.prototype.push.apply(errorChatIds, chatIds);
+					nextType();
+				}, caption, icon);
+			} else {
 				Array.prototype.push.apply(errorChatIds, chatIds);
 				nextType();
-			}, caption, icon);
-		} else if (type === 'tt') {
-			sendVideoTamtam(chatIds, path, function(chatIds) {
-				Array.prototype.push.apply(errorChatIds, chatIds);
-				nextType();
-			}, caption, icon);
-		} else {
-			Array.prototype.push.apply(errorChatIds, chatIds);
-			nextType();
-		}
-	}, () => ret(errorChatIds));
+			}
+		}, () => {
+			ret(errorChatIds);
+			FS.unlink(tempPath, Utils.DUMMY_FUNC);
+		});
+	});
 }
 
 

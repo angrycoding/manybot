@@ -146,6 +146,33 @@ function sendFileTelegram(token, method, originalChatId, streamOrId, caption, re
 	});
 }
 
+
+const getRandomInt = (min, max) => {
+    min = Math.ceil(min);
+    max = Math.floor(max);
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+};
+
+const getRandomLetterOrDigit = () => {
+	if (Math.round(Math.random())) return String(getRandomInt(0, 9));
+	var letter = String.fromCharCode(getRandomInt(97, 122));
+	if (Math.round(Math.random())) letter = letter.toUpperCase();
+	return letter;
+};
+
+const generateRandomString = (length) => {
+	var result = '';
+	var flag = false;
+	var time = new Date().getTime().toString(16).split('');
+	while (result.length < length) {
+		var tc = (flag = !flag && time.shift());
+		if (!tc) tc = getRandomLetterOrDigit();
+		if (Math.round(Math.random())) tc = tc.toUpperCase();
+		result += tc;
+	}
+	return result;
+};
+
 module.exports = {
 	DUMMY_FUNC: (() => 0),
 	getArray: getArray,
@@ -157,5 +184,6 @@ module.exports = {
 	fileExists: fileExists,
 	cleanupChatIds: cleanupChatIds,
 	createReadStream: createReadStream,
-	sendFileTelegram: sendFileTelegram
+	sendFileTelegram: sendFileTelegram,
+	generateRandomString: generateRandomString
 };
