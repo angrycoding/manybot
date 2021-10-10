@@ -120,12 +120,12 @@ function sendVideo(chatIds, path, ret, caption, icon) {
 		if (error) return ret(chatIds);
 		Async.eachOf(chatIds, function(chatIds, type, nextType) {
 			if (type === 'tg') {
-				sendVideoTelegram(chatIds, path, function(chatIds) {
+				sendVideoTelegram(chatIds, tempPath, function(chatIds) {
 					Array.prototype.push.apply(errorChatIds, chatIds);
 					nextType();
 				}, caption, icon);
 			} else if (type === 'tt') {
-				sendVideoTamtam(chatIds, path, function(chatIds) {
+				sendVideoTamtam(chatIds, tempPath, function(chatIds) {
 					Array.prototype.push.apply(errorChatIds, chatIds);
 					nextType();
 				}, caption, icon);
